@@ -1,0 +1,215 @@
+{
+    "RawImageFiles": {
+        "root": "/Volumes/GoogleDrive/Other computers/Lab/Feiyi_GoogleDrive/Feiyi_images",
+        "example01": 1270,
+        "stopImage": 1271,
+        "whiteImage": 1272,
+        "example02": 1273,
+        "calibRange": [
+            [
+                1274,
+                1309
+            ]
+        ],
+        "paraTarget": 1310,
+        "otherTargetRange": {
+            "tilt": [
+                [
+                    1311,
+                    1321
+                ]
+            ],
+            "depth": [
+                [
+                    1610,
+                    1649
+                ]
+            ]
+        },
+        "RawFileExtension": "pgm",
+        "stereoCalibRange": {
+            "R00C00": {
+                "R00C01": [
+                    [
+                        1344,
+                        1365
+                    ]
+                ],
+                "R01C00": [
+                    [
+                        1322,
+                        1343
+                    ]
+                ]
+            },
+            "R00C01": {
+                "R00C02": [
+                    [
+                        1366,
+                        1387
+                    ]
+                ],
+                "R01C01": [
+                    [
+                        1550,
+                        1569
+                    ]
+                ]
+            },
+            "R00C02": {
+                "R00C03": [
+                    [
+                        1388,
+                        1409
+                    ]
+                ],
+                "R01C02": [
+                    [
+                        1590,
+                        1609
+                    ]
+                ]
+            },
+            "R01C00": {
+                "R01C01": [
+                    [
+                        1410,
+                        1429
+                    ]
+                ],
+                "R02C00": [
+                    [
+                        1530,
+                        1549
+                    ]
+                ]
+            },
+            "R01C01": {
+                "R01C02": [
+                    [
+                        1430,
+                        1449
+                    ]
+                ],
+                "R02C01": [
+                    [
+                        1570,
+                        1589
+                    ]
+                ]
+            },
+            "R01C02": {
+                "R01C03": [
+                    [
+                        1450,
+                        1469
+                    ]
+                ],
+                "R02C02": [
+                    [
+                        1650,
+                        1659
+                    ],
+                    [
+                        1680,
+                        1689
+                    ]
+                ]
+            },
+            "R02C00": {
+                "R02C01": [
+                    [
+                        1470,
+                        1489
+                    ]
+                ]
+            },
+            "R02C01": {
+                "R02C02": [
+                    [
+                        1490,
+                        1509
+                    ]
+                ]
+            },
+            "R02C02": {
+                "R02C03": [
+                    [
+                        1510,
+                        1529
+                    ]
+                ]
+            },
+            "R00C03": {
+                "R01C03": [
+                    [
+                        1660,
+                        1669
+                    ],
+                    [
+                        1690,
+                        1699
+                    ]
+                ]
+            },
+            "R01C03": {
+                "R02C03": [
+                    [
+                        1670,
+                        1679
+                    ],
+                    [
+                        1700,
+                        1709
+                    ]
+                ]
+            }
+        }
+    },
+    "System": {
+        "M_MLA": 3.498,
+        "f_MLA": 0.00424,
+        "pixel": 4.65e-06,
+        "p_MLA": 0.001,
+        "z_paraCheckerboard": -0.5,
+        "f_main": 19.073632452585866
+    },
+    "Checkerboard": {
+        "CalibCheckerboardShape": [
+            6,
+            6
+        ],
+        "calibSquareSize": 0.007343,
+        "paraSquareSize": 0.00771,
+        "undist": [
+            0.010330839945091284,
+            -0.012040647380477436,
+            -0.0028731117364447457,
+            0.008122900754974918,
+            0.00834405300847868
+        ],
+        "number_of_pixels_per_block": 16.922030390780034,
+        "initAngle": 178,
+        "lastAngle": 200,
+        "tiltAngleInterval": 2,
+        "initDepth": -600,
+        "lastDepth": -210,
+        "depthInterval": 10
+    },
+    "Folder": {
+        "Log": "ImageLog",
+        "txtLog": "textLog",
+        "white": "whiteImage",
+        "demo": "segmentDemo",
+        "calib": "CSS_Calibration",
+        "undist": "CSS_Undistort",
+        "para": "paraCheckerboard",
+        "LU": "localUndistortion",
+        "GU": "globalUndistortion",
+        "tilt": "tilt",
+        "depth": "depth",
+        "pair": "pairing",
+        "VIP": "virtualImagePlane",
+        "optic": "optics"
+    }
+}
