@@ -14,11 +14,7 @@ to be written
 
 ## 1. Environment
 
-1.   python 3.7.3
-2.   numpy 1.21.2
-3.   opencv-python 4.5.4-dev
-4.   scipy 1.7.3
-5.   matplotlib 3.4.3
+1.   python 3
 
 
 
@@ -26,7 +22,7 @@ to be written
 
 ### 2.0. Coordinate Standard
 
-Since I always mix x and y axis, I'll write down the standard here. 
+Since I always mix x and y axis, I'll write down the standard here. It is important to check the coordinates for each function ( or even step). 
 
 **Standard**: In an image, the $(0,0)$ point is the upper left corner of the image. X axis starts from the origin and goes from left to right. Y axis starts from the origin and goes from top to bottom. The coordinate of an arbitrary pixel in the image is $(x,y)$. 
 
@@ -61,9 +57,9 @@ def BuildGridModel(stp_arr, **kwarg):
         To ignore ALL warnings, set ignoreWarning = True
 
     Args:
-        stp_arr (numpy.ndarray): A numpy array image with small stops. (other image file that is able to convert to numpy.ndarray is alse acceptable)
+        stp_arr (numpy.ndarray): A numpy array image. (other data format that is able to convert to numpy.ndarray is alse acceptable)
         approxSpacing (int, default=200): Approximate spacing between stops.
-        filterDiskMult (float, default=1/8): Filter disk radius, relative to spacing of stops.
+        filterDiskMult (float, default=1/6): Filter disk radius, relative to spacing of stops.
         imageBoundary (int, default=50): Image boundary width, help remove local maximums that are close to boundary (not real centers).
         debugDisplay (bool, default=False): Debug display, to show whether centers are estimated correctly.
         ignoreWarning (bool, default=False): Whether to ignore warnings.
@@ -71,87 +67,48 @@ def BuildGridModel(stp_arr, **kwarg):
     Returns:
         invM (numpy.ndarray): 2x2 transformation matrix. (rotation & shear)
         allPeaks (list): A list of peaks detected. (exclude the ones on the edge)
-        peakGroups (dict): Two groups, 'H' & 'V'
-            peakGroups['H'] (list): Group peaks in horizontal direction, [[p11,p12,...],[],...]
-            peakGroups['V'] (list): Group peaks in vertical direction, [[p11,p21,...],[],...]
+        peakArr (numpy.ndarray): Peak array, (row, col, 2)
     """
-    return invM, allPeaks, peakGroups
-
-# coordinates of peaks consist with the input `stp_arr` coordinate
-# e.g. stp_arr (y,x) => peak (y,x)
-# since there's y=kx+b line fitting in the function
-# it is assmued input coordinate is (y,x)
-# I'm not sure whether input coordinate (x,y) will affect the result
 ```
 
 #### 2.1.2. `subimageFourCorners`
 
 ```python
-def subimageFourCorners(invM, peakGroups):
+def subimageFourCorners(invM, peakArr):
     """Convert image centers into subimage corners
 
     Args:
         invM (numpy.ndarray): 2x2 transformation matrix. (rotation & shear)
-        peakGroups (dict): Two groups, 'H' & 'V'
-            peakGroups['H'] (list): Group peaks in horizontal direction, [[p11,p12,...],[],...]
-            peakGroups['V'] (list): Group peaks in vertical direction, [[p11,p21,...],[],...]
+        peakArr (numpy.ndarray): Peak array, (row, col, 2)
 
     Returns:
-        cornerGroups (dict): Similar structure to `peakGroups`
+        cornerGroups (numpy.ndarray): Similar structure to `peakArr`
     """
-    return cornerGroups
-# coordinates of corners consist with the input peak's coordinate
-# e.g. peak (y,x) => corners (y,x)
 ```
 
 #### 2.1.3. `segmentImage`
 
 ```python
-def segmentImage(image, invM, peakGroups):
+def segmentImage(image, invM, peakArr):
     """Crop raw image into subimages
 
     Args:
         image (numpy.ndarray): Image to be cropped. (Height, Width, Color)
         invM (numpy.ndarray): 2x2 transformation matrix. (rotation & shear)
-        peakGroups (dict): Two groups, 'H' & 'V'
-            peakGroups['H'] (list): Group peaks in horizontal direction, [[p11,p12,...],[],...]
-            peakGroups['V'] (list): Group peaks in vertical direction, [[p11,p21,...],[],...]
+        peakArr (numpy.ndarray): Peak array, (row, col, 2)
 
     Returns:
         subimages (dict): Subimages. {#row:{#col:image (Width,Height,Color)}}
         anchors (dict): Five points in each subimage. {#row:{#col:{points}}}
             points = {'center':p0, 'upperLeft':p1, 'upperRight':p2, 'lowerRight':p3, 'lowerLeft':p4}
     """
-    return subimages, anchors
-# coordinates of the output consists with the input coordinate
-# e.g. stp_arr (y,x) => peak (y,x)
 ```
 
 
 
 ### 2.2. `Checkerboard.py`
 
-#### 2.2.1. `readCheckerboardImages`
-
-```python
-def readCheckerboardImages(root, **kwarg):
-    """Iterator, return image path and image array
-
-    Args:
-        root (str): Image path root.
-        extension (str, default='pgm'): Image file extension.
-
-    Yields:
-        path (str): Path to each image file.
-        image_arr (numpy.ndarray): Image array.
-    """
-    yield path, image_arr
-# using cv.imread to read images
-# in its convention, image (y,x)
-# you can imagine it is (row, col) instead
-```
-
-#### 2.2.2. `getCheckerboardCorners`
+#### 2.2.1. `getCheckerboardCorners`
 
 ```python
 def getCheckerboardCorners(root, patternSize, **kwarg):
@@ -164,7 +121,7 @@ def getCheckerboardCorners(root, patternSize, **kwarg):
 
         # for this function
         patternSize (tuple): Number of inner corners per a chessboard, row and column.
-        squareSize (float, default=1.0): Block side length. (mm)
+        squareSize (float, default=1.0): Checker size. (mm)
         visualize (bool, default=False): Whether to draw and display corners detected.
 
         # for corner refine
@@ -176,541 +133,454 @@ def getCheckerboardCorners(root, patternSize, **kwarg):
     Returns:
         match (dict): Corresponding points and its raw image path. {'imagePoints':[],'objectPoints':[],'imagePath':[]}
     """
-    return match
-# here object and image points are (x,y)
-# though it is the result from cv
-# it doesn't follow cv's convention
-```
-
-#### 2.2.3. `calibrate`
-
-```python
-def calibrate(match):
-    """ Calibrate camera
-
-    Args:
-        match (dict): Corresponding points and its raw image path. {'imagePoints':[],'objectPoints':[],'imagePath':[]}
-
-    Returns:
-        ret (float): Root mean square (RMS), re-projection error.
-        mtx (numpy.ndarray): 3x3 camera Matrix.
-        dist (numpy.ndarray): 1x5 distortion coefficients.
-        rvecs (tuple): Rotation vectors, each image.
-        tvecs (tuple): Translation vectors, each image.
-    """
-    objectPoints = np.array(match['objectPoints'])
-    imagePoints = np.array(match['imagePoints'])
-    path = match['imagePath']
-    oneImage = cv.cvtColor(cv.imread(path[0]), cv.COLOR_BGR2GRAY)
-
-    ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objectPoints, imagePoints, oneImage.shape[::-1], None, None)
-    return ret, mtx, dist, rvecs, tvecs
-```
-
-#### 2.2.4. `calibOptimize`
-
-```python
-def calibOptimize(mtx, dist, imageShape):
-    """Refine camera matrix
-
-    Args:
-        mtx (numpy.ndarray): Camera intrinsic matrix.
-        dist (numpy.ndarray): Distortion coefficients.
-        imageShape (tuple): Image shape.
-
-    Returns:
-        newMatrix (numpy.ndarray): New camera intrinsic matrix.
-        roi (tuple): validPixROI, (x,y,w,h), rectangle that outlines all-good-pixels region in the undistorted image.
-    """
-    newMatrix, roi = cv.getOptimalNewCameraMatrix(mtx, dist, imageShape[::-1], 1, imageShape[::-1])
-    return newMatrix, roi
-# roi's coordinate is not tested
-# since I'll not use it
-```
-
-#### 2.2.5. `undistort`
-
-```python
-def undistort(image_arr, mtx, dist, newMatrix, roi, **kwarg):
-    """Undistort an image
-
-    Args:
-        image_arr (numpy.ndarray): Image to be undistorted.
-        mtx (numpy.ndarray): Camera intrinsic matrix.
-        dist (numpy.ndarray): Distortion coefficients.
-        newMatrix (numpy.ndarray): New camera intrinsic matrix.
-        roi (tuple): validPixROI, (x,y,w,h).
-        crop (bool, default=False): Whether to crop image.
-
-    Returns:
-        udst (numpy.ndarray): Undistorted image array.
-    """
-    crop = kwarg['crop'] if 'crop' in kwarg else False
-    # undistort
-    udst = cv.undistort(image_arr, mtx, dist, None, newMatrix)
-
-    if crop:
-        # crop image
-        x, y, w, h = roi
-        udst = udst[y:y+h, x:x+w]
-
-    return udst
-# it is from cv
-# therefore (y,x)
-```
-
-#### 2.2.6. `unvignet`
-
-```python
-def unvignet(image, white):
-    """Unvignetting an image
-
-    Args:
-        image (numpy.ndarray): Image to be unvignetted.
-        white (numpy.ndarray or float): White background. Same size as image, or 1.0
-
-    Returns:
-        u (numpy.ndarray): Unvignetted image.
-    """
-    mean = kwarg['mean'] if 'mean' in kwarg else 180
-    i = image.astype('float64')
-    i = i / (white+1e-3) # prevent x/0
-    i = 255 * i / i.max()
-    if i.mean() < mean:
-        i = i*mean/i.mean()
-    u = np.clip(i, 0, 255)
-    return u.astype('uint8')
-# coordinate consists with input
 ```
 
 
 
-### 2.3. `LFCalib.py` 
-
-#### Steps
+### 2.3. `CheckerboardClass.py` 
 
 ```python
-############################
-""" 0. image preparation """
-############################
-```
-
-```python
-########################################
-""" 1. check objective lens movement """
-########################################
-```
-
->   Because the iris is tight when its diameter is small, there may be some movement after adjusting its size. 
-
-```python
-#####################
-""" 2. grid model """
-#####################
-# rectangular shape is expected (each row/col has the same number of points)
-#
-# input:    stopImage_path
-#
-# output:   invM, allPeaks, peakGroups
-#
-```
-
-```python
-#############################
-""" 3. prepare white image"""
-#############################
-# white image, type = float64, [0,1]
-#
-# input:    whiteImage_path, invM, peakGroups
-#
-# output:   whiteImage, segWhiteImages, anchors
-#
-```
-
-```python
-#######################
-""" 4. segment demo """
-#######################
-```
-
-```python
-#######################################
-""" 5. calibrate center subaperture """
-#######################################
-#
-# input:    calibImagePath, whiteImage, invM, peakGroups, R, C
-#
-# output:   RMS, cameraMatrix, K, dist
-#
-```
-
-```python
-############################
-""" 6. check parallelism """
-############################
-#
-# input:    margin, paraTarget_path, whiteImage, invM, peakGroups, anchors
-#
-# output:   paraCheckerboard, subParas
-#
-```
-
-```python
-##########################
-""" 7. local undistort """
-##########################
-#
-# input:    paraCheckerboard, subParas, cameraMatrix, dist, K, anchors
-#
-# output:   paraCheckerboard_LU
-#
-```
-
-```python
-###########################
-""" 8. global undistort """
-###########################
-#
-# input:    peakGroups, R, C, paraCheckerboard_LU, undist
-#
-# output:   paraCheckerboard_GU, subGUs
-#
-```
-
-```python
-#########################################
-""" 9. common area in adjacent views """
-########################################
-#
-# input:    paraTarget_path, margin, subGUs
-#
-# output:   do_not_input_again
-#
-```
-
-```python
-#####################################
-""" 10. find corresponding points """
-#####################################
-#
-# input:    do_not_input_again, margin, anchors, ROWS, COLS
-#
-# output:   info
-#
-```
-
-```python
-# skip 11
-```
-
-```python
-########################################
-""" 12. generate virtual image plane """
-########################################
-#
-# input:    paraCheckerboard, subGUs, segWhiteImages, anchors, ROWS, COLS, info
-#
-# output:   subVIs
-#
-```
-
-```python
-###################################
-""" 13. save calibration result """
-###################################
-```
-
-
-
-### 2.4. `Undistort.py` 
-
-#### 2.4.1. `_move` 
-
-```python
-def _move(x, y, shape, undist, center):
-    ...
-    return xd, yd
-```
-
->   move pixel according to distortion equations
-
-#### 2.4.2. `myUndistort` 
-
-```python
-def myUndistort(imgArr, undist, center, **kwarg):
-    """Undistort an image, same size as original image
-
-    Args:
-        imgArr (numpy.ndarray): Image to be undistorted.
-        undist (list): Undistortion coefficients, [k1, k2, p1, p2, k3].
-        center (tuple): Undistortion center.
-        method (str, default='linear'): Interpolation method, {'nearest', 'linear', 'cubic'}.
-
-    Returns:
-        u (numpy.ndarray): Undistorted image.
-    """
-    return u
-# while u, imgArr are (y,x)
-# center is (x,y)
-```
-
->   Use `scipy.interpolate.griddata` to interpolate pixel values
->
->   pretty SLOW since it moves pixel by pixel. 
-
-
-
-### 2.5. `Utilities.py` 
-
-#### 2.5.1. `ProgromSTOP` 
-
-```python
-class ProgramSTOP(Exception):
-    def __init__(self, message='Stop here for debugging'):
-        self.message = message
-        super().__init__(self.message)
-```
-
-#### 2.5.2. `prepareFolder` 
-
-```python
-def prepareFolder(folder):
-    """Clean up a folder for storage
-
-    Args:
-        folder (str): Folder name.
-
-    Returns:
-        None
-    """
-    if not os.path.exists(folder):
-        os.mkdir(folder)
-    else:
-        files_or_dirs = os.listdir(folder)
-        for file_or_dir in files_or_dirs:
-            if os.path.isdir(os.path.join(folder, file_or_dir)):
-                prepareFolder(os.path.join(folder, file_or_dir))
-            else:
-                os.remove(os.path.join(folder, file_or_dir))
-```
-
-#### 2.5.3. `saveDict` 
-
-```python
-def saveDict(filename, data):
-    """Save a dict file to json file
-
-    Args:
-        filename (str): File name.
-        data (dict): Dict data to be stored.
-    """
-    assert type(data) == dict
-    if not filename.endswith('json'):
-        filename += '.json'
-    with open(filename, 'w', encoding='utf-8') as file:
-        json.dump(data, file, indent=4)
-```
-
-#### 2.5.4. `loadDict` 
-
-```python
-def loadDict(filename):
-    """Load a dict file from json
-
-    Args:
-        filename (str): Name of the file to load.
-
-    Returns:
-        data (dict): Loaded data.
-    """
-    def _convert_str_key_2_int(data):
-        newdata = {}
-        for key in data:
-            content = data[key]
-            try: # try to convert str to int
-                key = int(key)
-            except ValueError:
-                pass
-            try: # try to go through dict file
-                assert type(content) == dict
-                newdata[key] = _convert_str_key_2_int(content)
-            except AssertionError:
-                newdata[key] = content
-        return newdata
-
-    with open(filename, 'r') as file:
-        data = json.load(file)
-    
-    data = _convert_str_key_2_int(data)
-    return data
-```
-
-#### 2.5.5. `findROI` 
-
-```python
-def findROI(background, **kwarg):
-    """Find ROI in a cv window
-    Press 'enter/return' to finish
-    Press 'space' to delete last point
-
-    Args:
-        background (numpy.ndarray): Image to be cropped.
-        windowName (str, default='click_here'): CV window name.
-
-    Returns:
-        mouseUp (list): A list of points containing four corners of the ROI.
-    """
-    return mouseUp
-```
-
->   Find ROI in a cv window by clicking. There's **no constraints** in length of points. Basically, it records every point you clicked. 
-
-#### 2.5.6. `sortRect` 
-
-```python
-def sortRect(points):
-    """Sort four boundaries of a rectangle.
-
-    Args:
-        points (list or tuple): Contain points.
-
-    Returns:
-        rect (tuple): Four boundaries in order, (top, bottom, left, right). 
-    """
-    return rect
-```
-
-#### 2.5.7. `sortPointCloud` 
-
-```python
-def sortPointCloud(points, out_shape, **kwarg):
-    # reshape a point array
-    # Nx2 -> mxnx2, N=mxn
-    # based on (y,x) points
-    return out_arr
-```
-
-#### 2.5.8. `findSubPixPoint` 
-
-```python
-def findSubPixPoint(background, **kwarg):
-    """Find point at sub-pixel accuracy in a cv window
-    Press 'enter/return' to finish
-    Press 'space' to delete last point
-
-    Args:
-        background (numpy.ndarray): Image to be cropped.
-        windowName (str, default='click_here'): CV window name.
-        origin (tuple, default=(0,0)): Origin of CV window.
-
-    Returns:
-        subpixPoints (list): A list of points containing four corners of the ROI.
-    """
-    return subpixPoints
-```
-
-#### 2.5.9. `hsv2rgb` 
-
-```python
-def hsv2rgb(h, s, v):
-    """HSV color gumat to RGB
-
-    Arguments:
-        h (float): Hue, 0-360 degree.
-        s (float): Saturation, 0-1.
-        v (float): Intensity, 0-1.
-
-    Returns:
-        r (int): Red, 0-255.
-        g (int): Green, 0-255.
-        b (int): Blue, 0-255.
-    """
-```
-
-#### 2.5.10. `rgb2hsv` 
-
-```python
-def rgb2hsv(r, g, b):
-    """RGB color gumat to HSV
-
-    Arguments:
-        r (int): Red, 0-255.
-        g (int): Green, 0-255.
-        b (int): Blue, 0-255.
-
-    Returns:
-        h (float): Hue, 0-360 degree.
-        s (float): Saturation, 0-1.
-        v (float): Intensity, 0-1.
-    """
-```
-
-#### 2.5.11. `SystemParamReader` 
-
-```python
-class SystemParamReader:
-    """Read system profile
-    """
-    def __init__(self, filename='SystemParams.json'):
-        self.filename = filename
-
-    def read(self):
-        """Read json profile
+class CheckerboardParams:
+    def __init__(self, data, **kwargs):
+        """ data structure
+        data = {
+            'CalibCheckerSize': ,
+            'CalibCheckerShape' ,
+            'CheckerSize': ,
+            'number_of_pixels_per_checker': ,
+            'initDepth': ,
+            'lastDepth': ,
+            'depthInterval': ,
+            'depthRepeat': ,
+            'tilt': [rx, ry], [rad], (optional)
+        }
         """
-        return data
+        self.data = data
+        self.coeffi = kwargs['coeffi'] if 'coeffi' in kwargs else {'M':1, 'MM':1e-3}
+
+    def CalibCheckerSize(self, unit='M'):
+        return self.data['CalibCheckerSize'] / self.coeffi[unit.upper()]
+
+    @property
+    def CalibCheckerShape(self):
+        return tuple(self.data['CalibCheckerShape'])
+
+    def CheckerSize(self, unit='M'):
+        return self.data['CheckerSize'] / self.coeffi[unit.upper()]
+
+    @property
+    def number_of_pixels_per_checker(self):
+        return self.data['number_of_pixels_per_checker']
+
+    @property
+    def margin(self):
+        return round(self.number_of_pixels_per_checker/2)
+
+    def initDepth(self, unit='M'):
+        if unit.upper() in ['M', 'PIXEL']:
+            return self.data['initDepth'] / self.coeffi[unit.upper()]
+        if unit.upper() in ['MM']:
+            return round(self.data['initDepth']/self.coeffi[unit.upper()])
+
+    def lastDepth(self, unit='M'):
+        if unit.upper() in ['M', 'PIXEL']:
+            return self.data['lastDepth'] / self.coeffi[unit.upper()]
+        if unit.upper() in ['MM']:
+            return round(self.data['lastDepth']/self.coeffi[unit.upper()])
+
+    def depthInterval(self, unit='M'):
+        if unit.upper() in ['M', 'PIXEL']:
+            return self.data['depthInterval'] / self.coeffi[unit.upper()]
+        if unit.upper() in ['MM']:
+            return round(self.data['depthInterval']/self.coeffi[unit.upper()])
+
+    @property
+    def depthRepeat(self):
+        return self.data['depthRepeat']
+
+    @property
+    def tilt(self):
+        return self.data.get('tilt', [0, 0])
+
+    def save(self, **kwargs):
+        filename = kwargs['filename'] if filename in kwargs else 'CheckerboardParams.json'
+        data = {
+            'CalibCheckerSize': self.CalibCheckerSize(),
+            'CalibCheckerShape': self.CalibCheckerShape,
+            'CheckerSize': self.CheckerSize(),
+            'number_of_pixels_per_checker': self.number_of_pixels_per_checker,
+            'margin': self.margin,
+            'initDepth': self.initDepth(),
+            'lastDepth': self.lastDepth(),
+            'depthInterval': self.depthInterval(),
+            'depthRepeat': self.depthRepeat(),
+            'tilt': self.tilt
+        }
+        saveDict(filename, data)
 ```
 
-#### 2.5.12. `GO` 
+
+
+### 2.4. `OptiClass.py`
 
 ```python
-def GO(startPoint, targetPoint, info, **kwarg):
-    """Determine how to go from start to target
+class OptiParams:
+    def __init__(self, data):
+        """ data structure
+        data = {
+            'M_MLA': ,
+            'f_MLA': ,
+            'pixel': ,
+            'p_MLA': ,
+            'z_focus': ,
+            'z_focus_bias': 0 (optional)
+        }
+        """
+        self.data = data
+        self.coeffi = {'M':1, 'MM':1e-3, 'PIXEL':self.data['pixel']}
 
-    Args:
-        startPoint (tuple): Start position, (row, col)
-        targetPoint (tuple): Target position, (row, col)
-        info (dict): See `info` defined in section 11.
-        a_star (float): Total cost. This is a path search algorithm. https://en.wikipedia.org/wiki/A*_search_algorithm
-        steps (list): Previous steps. 
-        ban (list): Banned direction.
+    def M_MLA(self, title='nominal'):
+        # title = 'nominal' or 'real'
+        if title == 'nominal':
+            M = self.data['M_MLA']
+        if title == 'real':
+            try:
+                M = self.data['M_MLA_real']
+            except KeyError:
+                print("Real M_MLA haven't decided! ")
+                raise
+        return M
 
-    Returns:
-        steps (list): A list of steps. e.g. ['right', 'right', 'lower', ...]
+    def f_MLA(self, unit='M'):
+        return self.data['f_MLA'] / self.coeffi[unit.upper()]
+
+    def pixel(self, unit='M'):
+        return self.data['pixel'] / self.coeffi[unit.upper()]
+
+    def p_MLA(self, unit='M'):
+        return self.data['p_MLA'] / self.coeffi[unit.upper()]
+
+    def z_focus(self, unit='M'):
+        return self.data['z_focus'] / self.coeffi[unit.upper()]
+
+    def z_focus_bias(self, unit='M'):
+        zfb = self.data['z_focus_bias'] if 'z_focus_bias' in self.data else 0
+        return zfb / self.coeffi[unit.upper()]
+
+    def save(self, **kwargs):
+        filename = kwargs['filename'] if filename in kwargs else 'OptiParams.json'
+        data = {
+            'M_MLA': self.data['M_MLA'],
+            'f_MLA': self.data['f_MLA'],
+            'pixel': self.data['pixel'],
+            'p_MLA': self.data['p_MLA'],
+            'z_focus': self.data['z_focus'],
+            'z_focus_bias': self.data['z_focus_bias'] if 'z_focus_bias' in self.data else 0
+        }
+        try:
+            M = self.data['M_MLA_real']
+            data['M_MLA_real'] = M
+        except KeyError:
+            pass
+        saveDict(filename, data)
+```
+
+
+
+### 2.5. `NewImageClass.py`
+
+#### 2.5.1. `LFImage`
+
+```python
+class LFImage:
+    """Raw Light Field image class (Basic class)
+    """
+    def __init__(self, name, image):
+        """
+        Args:
+            name (str): Image name.
+            image (numpy.ndarray): Image array.
+        """
+        self.name = str(name)
+        self.image = image
+
+    def __repr__(self):
+        return self.name
+```
+
+#### 2.5.2. `WhiteImage`
+
+```python
+class WhiteImage(LFImage):
+    """White Image
+    """
+    def __init__(self, image):
+        super().__init__('WhiteImage', image)
+        self.image = image.astype('float64')/image.max()
+
+    def unvignet(self, imgStack, **kwargs):
+        """Unvignet one or more images
+
+        Args:
+            imgStack (numpy.ndarray): An image (w x h) or several images (n x w x h)
+            kwargs
+                'mean' (float, default=1): Mean brightness. [0,255]
+
+        Returns:
+            newImageStack (numpy.ndarray): Unvignetted image(s)
+        """
+```
+
+#### 2.5.3. `DepthStack`
+
+```python
+class DepthStack:
+    """Parallel Checkerboard Stack
+    """
+    def __init__(self, cbParams, images):
+        """
+        Args:
+            cbParams (Class CheckerboardParams)
+                initDepth (float): Initial depth, [m]
+                lastDepth (float): Last depth, [m]
+                depthInterval (float): Depth step, [m]
+            images (numpy.ndarray): Images, (n x w x h) # gray
+
+        Attrib:
+            self.imageStack (dict): Stack of images. imageStack = {depth: LFImage(class)}
+        """
+```
+
+
+
+### 2.6. `FeaturePoint.py`
+
+#### 2.6.1. `FeatPoint`
+
+```python
+class FeatPoint:
+	"""One feature point, top-left corner of the checker
+	"""
+	def __init__(self, row, col, **kwargs):
+		"""
+		Args:
+			row (str or int): Label of the row. 'A' = 1, 'Z' = 26
+			col (str or int): Label of the column.
+			kwargs (dict):
+				'rawPoints' (list): List of rawPoints, for loading data
+
+		Note:
+			rawPoints = [[point, view], ...]
+			# feature point coordinate on sensor plane and its corresponding view
+			# turn into 3D coordinates
+			# on sensor plane, z = 0
+		"""
+		self.row = row.upper() if type(row) == str else chr(64+row)
+		self.col = col.upper() if type(col) == str else chr(64+col)
+		self.rawPoints = kwargs['rawPoints'] if 'rawPoints' in kwargs else []
+		self._raw3D()
+
+	def __repr__(self):
+		return 'Feature point ' + self.row + self.col
+
+	def __len__(self):
+		return len(self.rawPoints)
+
+	def _raw3D(self):
+		"""Turn rawPoints into 3D coordinates, on sensor plane, z = 0
+		"""
+
+	def add(self, point, view):
+		"""Add a point from a view.
+		Args:
+			point (tuple): Raw global coordinate (on sensor plane) of a feature point. (y, x)
+			view (tuple): The view where the point is. (row, col), NOT the same as row/col in __init__
+		"""
+
+	def delete(self, point):
+		"""Delete a point from a view
+		Args:
+			point (tuple): A point close to the one to be deleted.
+		"""
+
+	@property
+	def isEmpty(self):
+		return len(self.rawPoints) == 0
+
+	@property
+	def isValid(self):
+		# at least 3 points to estimate min circle
+		return len(self.rawPoints) > 2
+
+	def save(self, filename):
+		"""Save self.row, self.col, self.rawPoints
+		Args:
+			filename (str): filename, json file
+		"""
+```
+
+#### 2.6.2. `RayTraceModule`
+
+```python
+class RayTraceModule:
+	"""First order ray tracing (MLA)
+	"""
+	def __init__(self, M_MLA, f_MLA, centers, fp, **kwargs):
+		"""
+		Args:
+			M_MLA (float): Magnification of MLA. (=z_obj/z_img)
+			f_MLA (float): Focal length of MLA, [pixel]
+			centers (numpy.ndarray): Centers of each view. Should be a (#row x #col x 2) array.
+			fp (class FeatPoint): Feature point.
+			kwargs:
+				row_center (int): Index of center row
+				col_center (int): Index of center col
+				II_norm_vec (numpy.ndarray): Normal vector of II plane.
+		"""
+
+	def project(self, **kwargs):
+		"""Project feature points to II plane
+		Args:
+			kwargs:
+				1. update self variables
+					points (list): Points to project, [[p(1x3), view(1x2)], ...]
+					M_MLA (float): Custom M_MLA.
+					II_norm_vec (numpy.ndarray): II plane norm vector, (1x3)
+					centers (numpy.ndarray): Projection centers, (#row x #col x 2)
+				2. new variables
+					dist (list): Distortion coefficients, [k1, k2, k3]
+					norm (float): Normalization factor.
+		"""
+
+	@property
+	def minCircle(self):
+		"""Error function, rotate II plane normal to z-axis, then calculate min circle
+		Returns:
+			minCircle (dict): Center and radius of the smallest circle enclosing all reprojected points. {'r':r,'c':(y,x)}
+		"""
+```
+
+
+
+### 2.7. `LFCam.py`
+
+```python
+class LFCam:
+    """Light Field Camera
+
+    Attributes Lookup Table:
+        self.
+            optiSystem (class OptiParams): M_MLA, f_MLA, pixel, p_MLA, z_focus, z_focus_bias
+            cbParams (class CheckerboardParams): initDepth, lastDepth, depthInterval, depthRepeat, tilt, CalibCheckerSize, CalibCheckerShape, number_of_pixels_per_checker, margin
+            exampleImage (class LFImage): image, name
+            whiteImage (class WhiteImage): image[0-1], name, unvignet
+            paraCheckerStack (class DepthStack): imageStack = {depth: LFImage}
+
+            invM (numpy.ndarray): 2x2 array
+            peaks (numpy.ndarray): (nrow x ncol x 2) array
+
+            featPoints (dict): {depth: {'AA': class RayTraceModule, ...}, ...}
+                class RayTraceModule: project, minCircle
+                class FeatPoint: rawPoints
+
+            pinhole_camera_matrix (numpy.ndarray): Camera matrix. (main lens + MLA)
+            pinhole_camera_dist (numpy.ndarray): Distortion coefficients. (main lens + MLA) 
+
+            MLA_distortion: Distortion coefficients. (MLA only)
+            main_lens_distortion: Distortion coefficients. (main lens only)
+
     """
 ```
 
+#### 2.7.1. `showExample`
+
+Show example images
+
+#### 2.7.2. `getRowColInfo`
+
+Input row & col info
+
+#### 2.7.3. `generateGridModel`
+
+```python
+    def generateGridModel(self, method, **kwargs):
+        """Generate grid model
+
+        Args:
+            method (str):
+                'P' or 'preliminary' for generating a preliminary grid model
+                'A' or 'accurate' for generating an accurate grid model
+
+        Returns:
+            invM (numpy.ndarray): 2x2 transformation matrix. Define grid orientation (rotation & shear)
+            peaks (numpy.ndarray): Center array, (row, col, 2)
+        """
+```
+
+#### 2.7.4. `extractFeatPoint`
+
+Extract feature points
+
+#### 2.7.5. `PinholeModel`
+
+```python
+def PinholeModel(self, **kwargs):
+    """Pinhole model of the center view of this light field camera
+    camera calibration with constraints
+
+    Returns:
+        mtx (numpy.ndarray): Camera matrix. (3x3)
+        dist (numpy.ndarray): Camera distortion coefficients. (1x5)
+    """
+```
+
+#### 2.7.6. `poseEstimate`
+
+```python
+def poseEstimate(self, featPoints, **kwargs): # havent tested, no calibration image
+    """Estimate checkerboard orientation
+
+    Args:
+        featPoints (numpy.ndarray): Feature points on a board.
+
+    Returns:
+        pose (dict):
+            world (numpy.ndarray): Feature points in world coordinate. Same shape as feature points.
+            rx, ry, rz (float): Approx tilt angles, be calculated only when input points >= 4
+    """
+```
+
+#### 2.7.7. `depthCorrection`
+
+Correct depth based on center view calibration result. 
+
+#### 2.7.8. `optimize_local`
+
+Optimize MLA magnification, MLA rotation, checkerboard tilt angle and MLA distortion. 
+
+#### 2.7.9. `optimize_global`
+
+Optimize main lens distortion. 
 
 
-### 2.6. Estimate Main Lens Distortion
 
-`EstimateMainLensDistortionII.py` estimate manually
+### 2.8. `Utilities.py` 
 
-`EstimateMainLensDistortionIII.py` automatically (SLOW)
-
+See details in file content. 
 
 
-### 2.7. On-axis point disparity
 
-`onAxisPart1.py` 
+### 2.9. `GenCheckerboard/GenBoard.py`
 
-1.   Calibrate and undistort local images
-2.   Undistort global image
-3.   Move subimages to `virtual image plane` 
-
-`onAxisPart2.py` 
-
-1.   Estimate real on-axis point in center view (it is different with the stop image center in `GridModel.py`)
-
-`onAxisPart3.py` 
-
-1.   Find local x-axis and y-axis in each view
-2.   Determine real on-axis point coordinate under local basis in center view
-3.   Determine real on-axis point coordinate in other views under local basis
-4.   Compute disparity
+Generate checkerboard for calibration. 
 
 
 
 ## 3. Log
+
+### version 1.0.0
+
+**2023/05/22** 1. Introducing `LFCam` class to store and do calculations. 2. Introducing `CheckerboardClass`, `OptiClass`, `NewImageClass` and `FeaturePoint` class to help calculating light field information. 3. Update working flowchart. 
 
 ### version 0.6.0
 

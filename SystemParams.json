@@ -1,0 +1,46 @@
+{
+    "ImageProfile": {
+        "root": "/Users/daydreamer/Library/CloudStorage/OneDrive-UniversityofArizona/Feiyi_Images_OneDrive/Feiyi_images",
+        "RawFileExtension": "pgm"
+    },
+    "RawImageFiles": {
+        "example": 3521,
+        "whiteImage": 3520,
+        "calibrate": [
+            3540,
+            3550
+        ],
+        "depth": [
+            3522,
+            3539
+        ]
+    },
+    "System": {
+        "M_MLA": 3.3,
+        "f_MLA": 4e-3,
+        "pixel": 4.65e-06,
+        "p_MLA": 1e-3,
+        "z_focus": -145e-03
+    },
+    "Checkerboard": {
+        "CalibCheckerSize": 1.5e-03,
+        "CalibCheckerShape": [7, 11],
+        "CheckerSize": 2.982e-03,
+        "number_of_pixels_per_checker": 20,
+        "initDepth": -205e-03,
+        "lastDepth": -130e-03,
+        "depthInterval": 15e-03,
+        "depthRepeat": 3
+    },
+    "Folder": {
+        "ImgLog": "ImageLog",
+        "txtLog": "textLog",
+        "rawFeatPoints": "rawFeatPoints",
+        "folders": "more.folders"
+    },
+    "Filenames": {
+        "RowColInfo": "row_col_info.json",
+        "secondName": "second.name",
+        "ThirdName": "ThirdName"
+    }
+}
