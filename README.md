@@ -8,13 +8,18 @@
 
 ## 0. Problem
 
-to be written
+Calibrate light field 2.0 camera and process light field images. 
 
 
 
 ## 1. Environment
 
-1.   python 3
+-   python 3.10.10
+-   imageio 2.27.0
+-   matplotlib 3.7.1
+-   numpy 1.24.2
+-   opencv-contrib-python 4.7.0.72
+-   scipy 1.10.1
 
 
 
