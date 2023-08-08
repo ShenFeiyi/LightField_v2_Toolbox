@@ -583,6 +583,10 @@ Generate checkerboard for calibration.
 
 ## 3. Log
 
+### version 1.0.1
+
+**2023/08/08** Final update. now it is able to refocus on different depth (a feature of light field camera). But as for depth estimation, currently I don't know how to do that with OpenCV. 
+
 ### version 1.0.0
 
 **2023/05/22** 1. Introducing `LFCam` class to store and do calculations. 2. Introducing `CheckerboardClass`, `OptiClass`, `NewImageClass` and `FeaturePoint` class to help calculating light field information. 3. Update working flowchart. 

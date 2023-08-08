@@ -73,18 +73,13 @@ class LFCam:
 
         # Read Images
         self.exampleImage = LFImage('example', cv.imread(self.ImagePaths['example'], cv.IMREAD_GRAYSCALE))
-        # self.exampleImage1 = LFImage('example1', cv.imread(self.ImagePaths['example1'], cv.IMREAD_GRAYSCALE))
-        # self.exampleImage2 = LFImage('example2', cv.imread(self.ImagePaths['example2'], cv.IMREAD_GRAYSCALE))
-        # self.stopImage = LFImage('stop', cv.imread(self.ImagePaths['stopImage'], cv.IMREAD_GRAYSCALE))
         self.whiteImage = WhiteImage(cv.imread(self.ImagePaths['whiteImage'], cv.IMREAD_GRAYSCALE))
 
         N_images = np.round(len(self.ImagePaths['depth'])/self.cbParams.depthRepeat).astype(int)
-        # imgShape = (N_images, self.exampleImage1.image.shape[0], self.exampleImage1.image.shape[1])
         imgShape = (N_images, self.exampleImage.image.shape[0], self.exampleImage.image.shape[1])
         images = np.zeros(imgShape, dtype='float64')
 
         for ii in range(0, len(self.ImagePaths['depth']), self.cbParams.depthRepeat):
-            # oneSlice = np.zeros(self.exampleImage1.image.shape, dtype='float64')
             oneSlice = np.zeros(self.exampleImage.image.shape, dtype='float64')
             for jj in range(self.cbParams.depthRepeat):
                 img = cv.imread(self.ImagePaths['depth'][ii+jj], cv.IMREAD_GRAYSCALE)
@@ -128,7 +123,6 @@ class LFCam:
         ax1 = fig.add_subplot(1,2,1)
         ax1.set_title('Example Image')
         ax1.set_aspect('equal')
-        # ax1.imshow(self.exampleImage1.image, cmap='gray')
         ax1.imshow(self.exampleImage.image, cmap='gray')
         ax2 = fig.add_subplot(1,2,2)
         ax2.set_title('White Image')
@@ -567,7 +561,7 @@ class LFCam:
             pinhole_camera_matrix (numpy.ndarray): Camera matrix. (main lens + MLA)
             pinhole_camera_dist (numpy.ndarray): Distortion coefficients. (main lens + MLA)
         """
-        fix_dist = kwargs.get('fix_dist', False)
+        fix_dist = kwargs.get('fix_dist', True)
 
         f0, _, _ = self.initPinholeModel(show=False)
         f0 /= self.optiSystem.pixel('m')
@@ -576,25 +570,33 @@ class LFCam:
         zeroZone = kwargs.get('zeroZone', (-1, -1))
         criteria = kwargs.get('criteria', (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 100, 1e-3))
 
-        self.calibImages_center = []
+        _, anchors = segmentImage(self.calibImages[0], self.invM, self.peaks)
+        # Create a rectangular mask
+        mask = np.zeros(self.calibImages[0].shape[:2], dtype=np.uint8)
+        start_point = anchors[self.row_center][self.col_center]['upperLeft'].astype(int)  # Top-left corner of the rectangle
+        end_point = anchors[self.row_center][self.col_center]['lowerRight'].astype(int)  # Bottom-right corner of the rectangle
+        # Draw a white rectangle on the mask to cover the outer part
+        cv.rectangle(mask, start_point[::-1], end_point[::-1], 255, -1)
+
+        self.calibImages_mask = []
         for img in self.calibImages:
-            subimages, anchors = segmentImage(img, self.invM, self.peaks)
-            center_img = subimages[self.row_center][self.col_center]
-            self.calibImages_center.append(center_img)
+            masked_image = cv.bitwise_and(img, img, mask=mask)
+            self.calibImages_mask.append(masked_image)
+            # cv.imwrite('./ImageLog/mask'+str(len(self.calibImages_mask)).zfill(2)+'.jpg', masked_image.astype('uint8'))
 
-        imageSize = self.calibImages_center[0].shape
+        imageSize = self.calibImages_mask[0].shape
 
-        objp = np.zeros((self.cbParams.CalibCheckerShape[0]*self.cbParams.CalibCheckerShape[1], 3), dtype='float64')
+        objp = np.zeros((np.prod(self.cbParams.CalibCheckerShape[:2]), 3), dtype='float64')
         objp[:, :2] = np.indices(self.cbParams.CalibCheckerShape).T.reshape(-1, 2)
         objp *= self.cbParams.CalibCheckerSize('mm')
 
         objectPoints = []
         imagePoints = []
-        for img in self.calibImages_center:
+        for img in self.calibImages_mask:
             retval, corners = cv.findChessboardCorners(img.astype('uint8'), patternSize=self.cbParams.CalibCheckerShape)
             if retval:
                 corners = cv.cornerSubPix(img.astype('uint8'), corners, winSize, zeroZone, criteria)
-                imgp = corners.reshape(-1, 2) # (mxn, 1, 2) => (mxn, 2)
+                imgp = corners.reshape(-1, 2) # (mxn, 1, 2) => (mxn, 2) # seems to be (x,y) points ! OpenCV mix (x,y) & (y,x) everywhere!!!
                 imagePoints.append(imgp.astype('float32'))
                 objectPoints.append(objp.astype('float32'))
 
@@ -610,7 +612,7 @@ class LFCam:
             flags += cv.CALIB_FIX_K3
         # flags += cv.CALIB_FIX_ASPECT_RATIO
 
-        cy, cx = self.peaks[self.row_center, self.col_center, :] - anchors[self.row_center][self.col_center]['upperLeft']
+        cy, cx = self.peaks[self.row_center, self.col_center, :]
         initCameraMatrix = np.array([[f0, 0, cx], [0, f0, cy], [0, 0, 1]])
         initDist = np.zeros(5)
         ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objectPoints, imagePoints, imageSize, initCameraMatrix, initDist, flags=flags)
@@ -619,7 +621,7 @@ class LFCam:
         self.pinhole_camera_matrix, self.pinhole_camera_dist = mtx, dist
         return mtx, dist
 
-    def poseEstimate(self, featPoints, **kwargs): # havent tested, no calibration image
+    def poseEstimate(self, featPoints, **kwargs): # it is not correct to use solvePnP with object point z=0; add images you want to estimate into calibration images, use tvec there
         """Estimate checkerboard orientation
 
         Args:
@@ -639,50 +641,45 @@ class LFCam:
         try:
             assert featPoints.shape[0]*featPoints.shape[1] >= 4
         except AssertionError:
-            print("cv2.error: OpenCV("+cv.__version__+") ~/opencv/modules/calib3d/src/solvepnp.cpp:840: error: (-215:Assertion failed) ( (npoints >= 4) || (npoints == 3 && flags == SOLVEPNP_ITERATIVE && useExtrinsicGuess) || (npoints >= 3 && flags == SOLVEPNP_SQPNP) ) && npoints == std::max(ipoints.checkVector(2, CV_32F), ipoints.checkVector(2, CV_64F)) in function 'solvePnPGeneric'")
+            print(
+                "cv2.error: OpenCV("
+                +cv.__version__
+                +") ~/opencv/modules/calib3d/src/solvepnp.cpp:840: "
+                +"error: (-215:Assertion failed) ( (npoints >= 4) || "
+                +"(npoints == 3 && flags == SOLVEPNP_ITERATIVE && useExtrinsicGuess) || "
+                +"(npoints >= 3 && flags == SOLVEPNP_SQPNP) ) && "
+                +"npoints == std::max(ipoints.checkVector(2, CV_32F), "
+                +"ipoints.checkVector(2, CV_64F)) in function 'solvePnPGeneric'"
+                )
             raise
 
         pose = {}
+        # CheckerSize = kwargs.get('CheckerSize', self.cbParams.CheckerSize('mm')) # consistent with the unit for calibration
+        # imagePoints = featPoints.astype('float32').reshape(np.prod(featPoints.shape[:2]), 2)
+        # objectPoints = np.zeros((np.prod(featPoints.shape[:2]), 3), dtype='float64')
+        # objectPoints[:, :2] = np.indices(featPoints.shape[:2]).T.reshape(-1, 2)
+        # objectPoints *= CheckerSize
 
-        CheckerSize = kwargs.get('CheckerSize', self.cbParams.CheckerSize('m')) # ??????????????????????????????????????
-        imagePoints = featPoints.astype('float32').reshape(featPoints.shape[0]*featPoints.shape[1], 2)
-        objectPoints = np.zeros((featPoints.shape[0]*featPoints.shape[1], 3), dtype='float64')
-        objectPoints[:, :2] = np.indices(featPoints.shape[:2]).T.reshape(-1, 2)
-        objectPoints *= CheckerSize
+        # ret, rvec, tvec = cv.solvePnP(objectPoints, imagePoints, self.pinhole_camera_matrix, self.pinhole_camera_dist)
+        # rmat, _ = cv.Rodrigues(rvec)
+        # rx, ry, rz = Rodrigue2Euler(rvec)
+        # print('Approx tip & tilt: {:.2f}, {:.2f}, {:.2f} degrees.'.format(rx*180/np.pi, ry*180/np.pi, rz*180/np.pi))
+        # pose['rx'], pose['ry'], pose['rz'] = rx, ry, rz
 
-        ret, rvec, tvec = cv.solvePnP(objectPoints, imagePoints, self.pinhole_camera_matrix, self.pinhole_camera_dist)
-        rmat, _ = cv.Rodrigues(rvec)
-        rx, ry, rz = Rodrigue2Euler(rmat)
-        print('Approx tip & tilt: ', rx*180/np.pi, ry*180/np.pi, rz*180/np.pi, ' degrees.')
-        pose['rx'], pose['ry'], pose['rz'] = rx, ry, rz
-
-        """ mathematical relation
-        I.
-            [x] = K (R|T) [X]
-            [y]           [Y]
-            [1]           [Z]
-                          [1]
-        II.
-            K^-1 [x] = R [X] + T
-                 [y]     [Y]
-                 [1]     [Z]
-        III.
-            R^-1 ( K^-1 [x] - T) = [X]
-                 (      [y]    )   [Y]
-                 (      [1]    )   [Z]
-        """
-        worldPoints = []
-        for row in range(featPoints.shape[0]):
-            for col in range(featPoints.shape[1]):
-                point = featPoints[row, col, :]
-                point = np.array([point[0], point[1], 1]).reshape(3,1)
-                world_point = np.matmul(np.linalg.inv(rmat), np.matmul(np.linalg.inv(self.pinhole_camera_matrix), point) - tvec.reshape(3,1))
-                worldPoints.append(world_point)
-        worldPoints = np.array(worldPoints).reshape((featPoints.shape[0], featPoints.shape[1], 3))
-        pose['world'] = worldPoints
+        # worldPoints = []
+        # points = featPoints.reshape(np.prod(featPoints.shape[:2]), 2)
+        # fx, fy = self.pinhole_camera_matrix[0][0], self.pinhole_camera_matrix[1][1]
+        # cx, cy = self.pinhole_camera_matrix[0][2], self.pinhole_camera_matrix[1][2]
+        # for point in points:
+        #     x, y, z = point[1], point[0], (fx+fy)/2
+        #     world_coordinate = np.matmul(np.linalg.inv(rmat), np.array([x,y,z]).reshape(3,1)-tvec.reshape(3,1))
+        #     X, Y, Z = world_coordinate
+        #     worldPoints.append([X, Y, Z])
+        # worldPoints = np.array(worldPoints).reshape((featPoints.shape[0], featPoints.shape[1], 3))
+        # pose['world'] = worldPoints
         return pose
 
-    def depthCorrection(self): # havent tested, no calibration image
+    def depthCorrection(self): # to be done
         """Correct depth
 
         Self attribute created:

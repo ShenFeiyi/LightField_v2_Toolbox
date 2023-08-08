@@ -24,26 +24,12 @@ class FeatPoint:
 		self.row = row.upper() if type(row) == str else chr(64+row)
 		self.col = col.upper() if type(col) == str else chr(64+col)
 		self.rawPoints = kwargs['rawPoints'] if 'rawPoints' in kwargs else []
-		self._raw3D()
 
 	def __repr__(self):
 		return 'Feature point ' + self.row + self.col
 
 	def __len__(self):
 		return len(self.rawPoints)
-
-	def _raw3D(self):
-		"""Turn rawPoints into 3D coordinates, on sensor plane, z = 0
-		"""
-		if not self.rawPoints == []:
-			pv_list = []
-			for point, view in self.rawPoints:
-				if len(point) == 2:
-					p = np.array([point[0], point[1], 0], dtype='float64')
-				else:
-					p = point
-				pv_list.append([p, view])
-			self.rawPoints = pv_list
 
 	def add(self, point, view):
 		"""Add a point from a view.

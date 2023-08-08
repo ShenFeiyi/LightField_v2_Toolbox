@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 import os
+import colour
 import imageio
 import cv2 as cv
 import numpy as np
@@ -15,6 +16,17 @@ def create_gif(image_list, gif_name, duration=1.0):
     frames = [imageio.imread(image_name) for image_name in image_list]
     imageio.mimsave(gif_name, frames, 'GIF', duration=duration)
 
+def hsv2rgb(h, s, v):
+    r, g, b = colour.HSV_to_RGB([h,s,v])
+    R, G, B = int(255*r), int(255*g), int(255*b)
+    R = hex(R)[2:]
+    G = hex(G)[2:]
+    B = hex(B)[2:]
+    R = R if len(R) == 2 else '0'+R
+    G = G if len(G) == 2 else '0'+G
+    B = B if len(B) == 2 else '0'+B
+    return '#'+R+G+B
+
 from GridModel import segmentImage
 from Utilities import ProgramSTOP, loadDict, Rodrigue2Euler, myUndistort
 
@@ -22,7 +34,7 @@ from LFCam import LFCam
 
 cam = LFCam('SystemParams.json')
 
-##cam.initFolder()
+cam.initFolder()
 ##cam.showExample()
 
 if not os.path.exists(cam.RowColInfoFilename):
@@ -33,19 +45,43 @@ else:
     cam.col_center, cam.col_total = data['C'], data['COLS']
 
 initDepth, lastDepth, depthInterval = cam.cbParams.initDepth(), cam.cbParams.lastDepth(), cam.cbParams.depthInterval()
-##initDepth, lastDepth, depthInterval = -129e-3, -100e-3, 1e-3
 
 invM1, peaks1 = cam.generateGridModel('p', filterDiskMult=1/2.1, imageBoundary=75, debugDisplay=False)
-##invM1, peaks1 = cam.generateGridModel('p', filterDiskMult=1/8, imageBoundary=75, debugDisplay=False)
 cam.extractFeatPoints(initDepth=initDepth, lastDepth=lastDepth)
 invM2, peaks2 = cam.generateGridModel('a', showStep=False)
 
-mtx, dist = cam.PinholeModel()
-
-##cam.depthCorrection()
-
 ret1 = cam.optimize_local(detail=True)
 ret2 = cam.optimize_global(detail=True)
+
+mtx, dist = cam.PinholeModel()
+fps, rcNames = cam.featPoints_inView((cam.row_center, cam.col_center))
+
+##f, _, _ = cam.initPinholeModel()
+##cam.pinhole_camera_matrix[0][0] = f/4.65e-6
+##cam.pinhole_camera_matrix[1][1] = f/4.65e-6
+
+##fig = plt.figure()
+##ax = fig.add_subplot(projection='3d')
+##ax = fig.add_subplot(1,1,1)
+##ax.scatter(imgps[:,:,0], imgps[:,:,1])
+##for ii, d in enumerate(fps):
+##    fp = fps[d]
+##    ax.scatter(fp[:,:,0], fp[:,:,1])
+##    pose = cam.poseEstimate(fp[:,:,[1,0]])
+##    pts = pose['world'].reshape(np.prod(pose['world'].shape[:2]), 3)
+##    print(d)
+##    print(pose['world'][:,:,-1])
+##    for p in pts:
+##        ax.scatter(p[0], p[1], p[2], color=hsv2rgb(ii/len(fps),1,1))
+##    ax.scatter(p[0], p[1], p[2], color=hsv2rgb(ii/len(fps),1,1), label=d)
+##    break
+##ax.set_xlabel('x')
+##ax.set_ylabel('y')
+##ax.set_zlabel('z')
+##plt.legend()
+##plt.show()
+##cam.depthCorrection()
+
 
 
 
@@ -478,14 +514,14 @@ def est_pose():
         return pose
 
 if __name__ == '__main__':
-##    compare_3_sets_of_peaks()
-##    present_II_plane_reprojection_and_number_vs_radius()
-##    reproject_2_depth()
-##    image_undist(refocus=False)
-##    image_undist()
-##    image_refocus()
+    compare_3_sets_of_peaks()
+    present_II_plane_reprojection_and_number_vs_radius()
+    reproject_2_depth()
+    image_undist(refocus=False)
+    image_undist()
+    image_refocus()
     find_disparity()
-##    sensor_plane_images()
+    sensor_plane_images()
 
 ##    pose = est_pose()
 ##    plt.figure('01')

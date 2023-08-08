@@ -466,14 +466,18 @@ def Rodrigue2Euler(R):
     if R.shape == (3,1):
         R, _ = cv.Rodrigues(R)
 
-    sinb = - R[2,0]
-    b = np.arcsin(sinb)
-    sinacosb = R[2,1]
-    sina = sinacosb / np.cos(b)
-    a = np.arcsin(sina)
-    cosbsinc = R[1,0]
-    sinc = cosbsinc / np.cos(b)
-    c = np.arcsin(sinc)
+    # sinb = - R[2,0]
+    # b = np.arcsin(sinb)
+    # sinacosb = R[2,1]
+    # sina = sinacosb / np.cos(b)
+    # a = np.arcsin(sina)
+    # cosbsinc = R[1,0]
+    # sinc = cosbsinc / np.cos(b)
+    # c = np.arcsin(sinc)
+
+    ### just realized there's an easy way...
+    angles = cv.RQDecomp3x3(R)
+    a, b, c = angles[0]
 
     return a, b, c
 
