@@ -793,7 +793,11 @@ class LFCam:
         if kwargs.get('detail', False):
             print(optimizeResult, '\n')
 
-        M, rz, rx, ry, k1, k2, k3 = optimizeResult.x
+        if self.PoorRes:
+            M, rz, k1, k2, k3 = optimizeResult.x
+            rx, ry = 0, 0
+        else:
+            M, rz, rx, ry, k1, k2, k3 = optimizeResult.x
         print('Magnification of MLA: {:.3f}'.format(M))
         print('MLA rotation: {:.3f} degrees'.format(rz*180/np.pi))
         print('Checkerboard tilt angle: {:.3f}, {:.3f} degrees'.format(rx*180/np.pi, ry*180/np.pi))
