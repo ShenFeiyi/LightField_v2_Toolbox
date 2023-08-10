@@ -9,7 +9,7 @@ from Checkerboard import getCheckerboardCorners
 from GridModel import BuildGridModel, segmentImage
 
 from Utilities import ProgramSTOP, SystemParamReader, KeyFinder, prepareFolder, saveDict, loadDict, StraightLine
-from Utilities import findROI, getRect, arrangePointCloud, averageDistanceFit, averageDistanceFit_advance, Rodrigue2Euler
+from Utilities import findROI, find_corners_manual, getRect, arrangePointCloud, averageDistanceFit, averageDistanceFit_advance, Rodrigue2Euler
 
 from OptiClass import OptiParams
 from CheckerboardClass import CheckerboardParams
@@ -42,7 +42,7 @@ class LFCam:
             main_lens_distortion: Distortion coefficients. (main lens only)
 
     """
-    def __init__(self, SysParamFile):
+    def __init__(self, SysParamFile, **kwargs):
         self.Reader = SystemParamReader(filename=SysParamFile)
         self.SysParams = self.Reader.read()
         self.Finder = KeyFinder(self.SysParams)
@@ -72,6 +72,7 @@ class LFCam:
         self.ImagePaths = self.Finder.find('ImagePaths')
 
         # Read Images
+        self.PoorRes = kwargs.get('PoorRes', False) # image quality is poor
         self.exampleImage = LFImage('example', cv.imread(self.ImagePaths['example'], cv.IMREAD_GRAYSCALE))
         self.whiteImage = WhiteImage(cv.imread(self.ImagePaths['whiteImage'], cv.IMREAD_GRAYSCALE))
 
@@ -85,13 +86,18 @@ class LFCam:
                 img = cv.imread(self.ImagePaths['depth'][ii+jj], cv.IMREAD_GRAYSCALE)
                 oneSlice += img
             oneSlice /= self.cbParams.depthRepeat
-            # oneSlice = self.whiteImage.unvignet(oneSlice)
+            if self.PoorRes:
+                oneSlice = self.whiteImage.unvignet(oneSlice, clip=50)
+            else:
+                oneSlice = self.whiteImage.unvignet(oneSlice, clip=255)
             images[int(ii/self.cbParams.depthRepeat), :, :] = oneSlice
         self.paraCheckerStack = DepthStack(self.cbParams, images)
 
         self.calibImages = []
         for path in self.ImagePaths['calibrate']:
             img = cv.imread(path, cv.IMREAD_GRAYSCALE)
+            if self.PoorRes:
+                img = self.whiteImage.unvignet(img, clip=200)
             self.calibImages.append(img)
 
     def __repr__(self):
@@ -382,15 +388,23 @@ class LFCam:
                         for col in range(self.col_total):
 
                             while True: # if corners not detected, select a smaller area and try again
-                                # crop region of interest
-                                view = subimages[row][col]
-                                mouseUp = findROI(view)
-                                top, bottom, left, right = getRect(mouseUp)
-                                roi = view[max(0,top-margin):min(bottom+margin,view.shape[0]), max(0,left-margin):min(right+margin,view.shape[1])]
-                                # corner detection function not compatible with filename containing '.'
-                                fname = 'view_' + curLFImage.name.split('.')[-1] + '_' + str(row).zfill(2) + '_' + str(col).zfill(2)
-                                cv.imwrite(os.path.join(self.ImgLog, fname+'.thumbnail.jpg'), roi.astype('uint8'))
-                                np.save(os.path.join(self.ImgLog, fname+'.npy'), roi.astype('float64'))
+                                if self.PoorRes:
+                                    view = subimages[row][col]
+                                    print(curDepth, row, col)
+                                    print(anchors[row][col]['upperLeft'], anchors[row][col]['lowerRight']-anchors[row][col]['upperLeft'])
+                                    low_light_corners = find_corners_manual(view) # (x, y) !!
+                                    low_light_corners = np.flip(low_light_corners)
+                                    low_light_corners += np.array(anchors[row][col]['upperLeft'])
+                                else:
+                                    # crop region of interest
+                                    view = subimages[row][col]
+                                    mouseUp = findROI(view, name=str(curDepth)+' '+str(row)+' '+str(col))
+                                    top, bottom, left, right = getRect(mouseUp)
+                                    roi = view[max(0,top-margin):min(bottom+margin,view.shape[0]), max(0,left-margin):min(right+margin,view.shape[1])]
+                                    # corner detection function not compatible with filename containing '.'
+                                    fname = 'view_' + curLFImage.name.split('.')[-1] + '_' + str(row).zfill(2) + '_' + str(col).zfill(2)
+                                    cv.imwrite(os.path.join(self.ImgLog, fname+'.thumbnail.jpg'), roi.astype('uint8'))
+                                    np.save(os.path.join(self.ImgLog, fname+'.npy'), roi.astype('float64'))
 
                                 # shape & corner names
                                 while True:
@@ -408,16 +422,20 @@ class LFCam:
                                 r2, c2 = corner2.upper()
                                 shape = (ord(r2)+1-ord(r1)+1, ord(c2)+1-ord(c1)+1) # # of inner corners, not squares
 
-                                # detect corners
-                                match = getCheckerboardCorners(os.path.join(self.ImgLog, fname+'.npy'), shape, extension='npy', visualize=True)
-                                try:
-                                    imagePoints = match['imagePoints'][0]
-                                    imagePoints = arrangePointCloud(np.flip(imagePoints), shape, self.cbParams.number_of_pixels_per_checker)
-                                    imagePoints += (np.array(anchors[row][col]['upperLeft']) + np.array([top-margin,left-margin])) # global
-                                    # if success, imagePoints would be (row, col, 2)
+                                if self.PoorRes:
+                                    imagePoints = arrangePointCloud(low_light_corners.reshape(-1,2), shape, self.cbParams.number_of_pixels_per_checker)
                                     break
-                                except IndexError:
-                                    print(fname, 'CORNER DETECTION FAIL\nTry again!')
+                                else:
+                                    # detect corners
+                                    match = getCheckerboardCorners(os.path.join(self.ImgLog, fname+'.npy'), shape, extension='npy', visualize=True)
+                                    try:
+                                        imagePoints = match['imagePoints'][0]
+                                        imagePoints = arrangePointCloud(np.flip(imagePoints), shape, self.cbParams.number_of_pixels_per_checker)
+                                        imagePoints += (np.array(anchors[row][col]['upperLeft']) + np.array([top-margin,left-margin])) # global
+                                        # if success, imagePoints would be (row, col, 2)
+                                        break
+                                    except IndexError:
+                                        print(fname, 'CORNER DETECTION FAIL\nTry again!')
 
                             # input corners
                             for r in range(ord(r1), ord(r2)+2):
@@ -723,7 +741,11 @@ class LFCam:
             Returns:
                 radii (numpy.ndarray): Radii of minEnclosingCircle of each feature points reprojected back to II plane.
             """
-            M, R, alpha, beta, k1, k2, k3 = params
+            if len(params) == 7:
+                M, R, alpha, beta, k1, k2, k3 = params
+            else:
+                M, R, k1, k2, k3 = params
+                alpha, beta = 0, 0
 
             rot = np.array([[np.cos(R), -np.sin(R)],[np.sin(R), np.cos(R)]])
             reproj_centers = centers - centers[center_index[0], center_index[1], :]
@@ -763,6 +785,9 @@ class LFCam:
             'center_index': (self.row_center, self.col_center),
             'normFactor': self.optiSystem.p_MLA('pixel'),
             }
+        if self.PoorRes:
+            x_scale = np.array([1, 5e-2, 1e-2, 1e-2, 1e-2]) # delete rx & ry
+            initGuess = [self.optiSystem.M_MLA('nominal'), rz, k1, k2, k3]
         optimizeResult = least_squares(cost_func, initGuess, kwargs=inputData, method=method, ftol=ftol, xtol=xtol, gtol=gtol, x_scale=x_scale, loss=loss)
         print('Local optimization result using scipy.optimize.least_squares')
         if kwargs.get('detail', False):

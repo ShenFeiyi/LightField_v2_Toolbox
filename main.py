@@ -28,11 +28,14 @@ def hsv2rgb(h, s, v):
     return '#'+R+G+B
 
 from GridModel import segmentImage
-from Utilities import ProgramSTOP, loadDict, Rodrigue2Euler, myUndistort
+from Utilities import ProgramSTOP, loadDict, Rodrigue2Euler, myUndistort, prepareFolder
 
 from LFCam import LFCam
 
-cam = LFCam('SystemParams.json')
+##prepareFolder('ImageLog')
+##prepareFolder('textLog')
+
+cam = LFCam('SystemParams.json', PoorRes=False)
 
 cam.initFolder()
 ##cam.showExample()
@@ -46,15 +49,16 @@ else:
 
 initDepth, lastDepth, depthInterval = cam.cbParams.initDepth(), cam.cbParams.lastDepth(), cam.cbParams.depthInterval()
 
-invM1, peaks1 = cam.generateGridModel('p', filterDiskMult=1/2.1, imageBoundary=75, debugDisplay=False)
+#invM1, peaks1 = cam.generateGridModel('p', filterDiskMult=1/2.1, imageBoundary=75, debugDisplay=False) # outer focus
+invM1, peaks1 = cam.generateGridModel('p', filterDiskMult=1/2.8, imageBoundary=75, debugDisplay=False) # inner focus
 cam.extractFeatPoints(initDepth=initDepth, lastDepth=lastDepth)
 invM2, peaks2 = cam.generateGridModel('a', showStep=False)
 
 ret1 = cam.optimize_local(detail=True)
 ret2 = cam.optimize_global(detail=True)
 
-mtx, dist = cam.PinholeModel()
-fps, rcNames = cam.featPoints_inView((cam.row_center, cam.col_center))
+##mtx, dist = cam.PinholeModel()
+##fps, rcNames = cam.featPoints_inView((cam.row_center, cam.col_center))
 
 ##f, _, _ = cam.initPinholeModel()
 ##cam.pinhole_camera_matrix[0][0] = f/4.65e-6
@@ -424,7 +428,7 @@ def image_refocus():
         filename = 'IIPlane_refocus_'+str(depth).split('.')[-1]+'.png'
         IIimage_u = 255*IIimage_u/IIimage_u.max()
         org, font, fontScale, color, thickness = (50, 50), cv.FONT_HERSHEY_SIMPLEX, 2, (255,255,255), 2
-        IIimage_u = cv.putText(IIimage_u, str(depth), org, font, fontScale, color, thickness, cv.LINE_AA)
+        IIimage_u = cv.putText(IIimage_u, str(np.abs(depth))+'[m]', org, font, fontScale, color, thickness, cv.LINE_AA)
         cv.imwrite(os.path.join('ImageLog',filename), IIimage_u.astype('uint8'))
         image_list.append(os.path.join('ImageLog',filename))
     re_image_list = image_list.copy()
@@ -520,7 +524,7 @@ if __name__ == '__main__':
     image_undist(refocus=False)
     image_undist()
     image_refocus()
-    find_disparity()
+##    find_disparity()
     sensor_plane_images()
 
 ##    pose = est_pose()

@@ -146,10 +146,11 @@ def findROI(background, **kwarg):
     try:
         while True:
             cv.imshow(windowName, click_img)
-            if cv.waitKey(1) == 13: # key: enter/return
+            key = cv.waitKey(1) & 0xFF
+            if key == 13: # key: enter/return
                 if not mouseUp == []:
                     break
-            elif cv.waitKey(1) == 32: # key: space
+            elif key == 32: # key: space
                 # will NOT refresh drawings in window
                 try:
                     mouseUp.pop(-1)
@@ -267,6 +268,176 @@ def findSubPixPoint(background, **kwarg):
     cv.destroyAllWindows() # make sure cv window close
 
     return subpixPoints
+
+def find_corners_manual(background, **kwargs):
+    """Find checkerboard corners manually in a cv window
+    Press 'q' to quit
+    Press 'w', + rows
+    Press 'a', - cols
+    Press 's', - rows
+    Press 'd', + cols
+    Press 'u', - row offset
+    Press 'i', + row offset
+    Press 'j', - col offset
+    Press 'k', + col offset
+    Press up arrow, corners go up
+    Press down arrow, corners go down
+    Press left arrow, corners go left
+    Press right arrow, corners go right
+    Press 'h', hide or unhide corners
+
+    Args:
+        background (numpy.ndarray): Image to detect.
+        windowName (str, default='find_corners_manual'): CV window name.
+        origin (tuple, default=(0,0)): Origin of CV window.
+
+    Returns:
+        corners (numpy.ndarray): An array of points containing corners.
+    """
+    image = background
+    if len(image.shape) == 2: # gray image
+        image = cv.cvtColor(image.astype('uint8'), cv.COLOR_GRAY2BGR)
+
+    clean_image = image.copy()
+
+    nrows, ncols = kwargs.get('nrows', 4), kwargs.get('ncols', 5)
+    roff1, coff1 = kwargs.get('roff', 10), kwargs.get('coff', 10)
+    roff2, coff2 = roff1, coff1
+
+    dragging = False
+    corner_to_drag = None
+
+    def genCorners(nrs, ncs):
+        nonlocal roff1, coff1, roff2, coff2, image
+        pts = np.zeros((nrs, ncs, 2)) # each point (col, row)
+        for row in range(nrs):
+            for col in range(ncs):
+                cr = (image.shape[0]-roff1-roff2)/(nrs-1)
+                cc = (image.shape[1]-coff1-coff2)/(ncs-1)
+                pts[row, col, :] = np.array([coff1+col*cc, roff1+row*cr])
+        return pts
+
+    def draw_grid():
+        nonlocal image, corners
+        for row in range(corners.shape[0]):
+            for col in range(corners.shape[1]):
+                cv.circle(image, corners[row, col].astype(int), 3, (0,255,255), 1)
+                try:
+                    cv.line(image, corners[row, col].astype(int), corners[row+1, col].astype(int), (0,255,0), 1)
+                except IndexError:
+                    pass
+                try:
+                    cv.line(image, corners[row, col].astype(int), corners[row, col+1].astype(int), (0,255,0), 1)
+                except IndexError:
+                    pass
+                try:
+                    cv.line(image, corners[row+1, col].astype(int), corners[row+1, col+1].astype(int), (0,255,0), 1)
+                except IndexError:
+                    pass
+                try:
+                    cv.line(image, corners[row, col+1].astype(int), corners[row+1, col+1].astype(int), (0,255,0), 1)
+                except IndexError:
+                    pass
+
+    def mouse_callback(event, x, y, flags, param):
+        nonlocal dragging, corner_to_drag, corners
+        local_corners = corners.reshape(-1,2).copy()
+
+        if event == cv.EVENT_LBUTTONDOWN:
+            for ii, corner in enumerate(local_corners):
+                corner_x, corner_y = corner
+                if abs(corner_x - x) < 10 and abs(corner_y - y) < 10:
+                    dragging = True
+                    corner_to_drag = ii
+                    break
+
+        elif event == cv.EVENT_MOUSEMOVE:
+            if dragging:
+                new_corner_x = min(max(x, 0), image.shape[1])
+                new_corner_y = min(max(y, 0), image.shape[0])
+                corners[corner_to_drag//corners.shape[1], np.mod(corner_to_drag, corners.shape[1]), :] = np.array([new_corner_x, new_corner_y])
+
+        elif event == cv.EVENT_LBUTTONUP:
+            dragging = False
+            corner_to_drag = None
+            del local_corners
+
+    corners = genCorners(nrows, ncols)
+    origin = kwargs.get('origin', (0,0))
+
+    windowName = kwargs.get('name', 'find_corners_manual')
+    cv.namedWindow(windowName)
+    cv.moveWindow(windowName, origin[0], origin[1])
+    cv.setMouseCallback(windowName, mouse_callback)
+
+    try:
+        hide = False
+        while True:
+            key = cv.waitKey(1) & 0xFF
+
+            if key == ord('q'):
+                break
+            elif key == ord('w'):
+                nrows += 1
+                corners = genCorners(nrows, ncols)
+            elif key == ord('a'):
+                ncols = max(ncols-1, 2)
+                corners = genCorners(nrows, ncols)
+            elif key == ord('s'):
+                nrows = max(nrows-1, 2)
+                corners = genCorners(nrows, ncols)
+            elif key == ord('d'):
+                ncols += 1
+                corners = genCorners(nrows, ncols)
+            elif key == ord('u'):
+                roff1 -= 0.5
+                roff2 -= 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == ord('i'):
+                roff1 += 0.5
+                roff2 += 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == ord('j'):
+                coff1 -= 0.5
+                coff2 -= 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == ord('k'):
+                coff1 += 0.5
+                coff2 += 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == ord('h'):
+                hide = not hide
+            elif key == 0: # up
+                roff1 -= 0.5
+                roff2 += 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == 1: # down
+                roff1 += 0.5
+                roff2 -= 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == 2: # left
+                coff1 -= 0.5
+                coff2 += 0.5
+                corners = genCorners(nrows, ncols)
+            elif key == 3: # right
+                coff1 += 0.5
+                coff2 -= 0.5
+                corners = genCorners(nrows, ncols)
+
+            draw_grid()
+            if hide:
+                cv.imshow(windowName, clean_image)
+            else:
+                cv.imshow(windowName, image)
+            del image
+            image = clean_image.copy()
+
+        cv.destroyAllWindows()
+    except KeyboardInterrupt:
+        cv.destroyAllWindows()
+        raise ProgramSTOP(message='KeyboardInterrupt!')
+    cv.destroyAllWindows() # make sure cv window close
+    return corners
 
 def getRect(points):
     """Get four boundaries of a rectangle.

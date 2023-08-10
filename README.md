@@ -583,6 +583,10 @@ Generate checkerboard for calibration.
 
 ## 3. Log
 
+### version 1.0.2
+
+**2023/08/10** Final update. Add support to poor resolution images. 
+
 ### version 1.0.1
 
 **2023/08/08** Final update. now it is able to refocus on different depth (a feature of light field camera). But as for depth estimation, currently I don't know how to do that with OpenCV. 

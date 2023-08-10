@@ -10,7 +10,7 @@ class LFImage:
             name (str): Image name.
             image (numpy.ndarray): Image array.
         """
-        self.name = str(name)
+        self.name = 'LFImage_'+str(name)
         self.image = image
 
     def __repr__(self):
@@ -29,12 +29,12 @@ class WhiteImage(LFImage):
         Args:
             imgStack (numpy.ndarray): An image (w x h) or several images (n x w x h)
             kwargs
-                'mean' (float, default=1): Mean brightness. [0,255]
+                'clip' (float, default=255): Value to clip. [0,255]
 
         Returns:
             newImageStack (numpy.ndarray): Unvignetted image(s)
         """
-        mean = kwargs['mean'] if 'mean' in kwargs else 1
+        clip = kwargs['clip'] if 'clip' in kwargs else 255
         imgShape = imgStack.shape[-2:]
         assert imgShape == self.image.shape
 
@@ -43,14 +43,13 @@ class WhiteImage(LFImage):
             imgStack = imgStack.astype('float64')
             for i in range(imgStack.shape[0]):
                 newImageStack[i,:,:] = imgStack[i,:,:] / (self.image+1e-3) # prevent x/0
-                if newImageStack[i,:,:].mean() < mean:
-                    newImageStack[i,:,:] = newImageStack[i,:,:]*mean/newImageStack[i,:,:].mean()
+                newImageStack[i,:,:] = 255*(newImageStack[i,:,:]-newImageStack[i,:,:].min())/(newImageStack[i,:,:].max()-newImageStack[i,:,:].min())
+                newImageStack[i,:,:] = np.clip(newImageStack[i,:,:], 0, clip)*255/clip
         else: # one image
             newImageStack = imgStack.astype('float64') / (self.image+1e-3)
-            if newImageStack.mean() < mean:
-                newImageStack = newImageStack*mean/newImageStack.mean()
+            newImageStack = 255*(newImageStack-newImageStack.min())/(newImageStack.max()-newImageStack.min())
+            newImageStack = np.clip(newImageStack, 0, clip)*255/clip
 
-        newImageStack = np.clip(newImageStack, 0, 255)
         return newImageStack
 
 class DepthStack:
