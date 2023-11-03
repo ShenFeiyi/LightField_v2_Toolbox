@@ -1,10 +1,56 @@
 # -*- coding:utf-8 -*-
 import cv2 as cv
 import numpy as np
-from scipy.ndimage import filters
 from scipy.optimize import curve_fit
 from matplotlib import pyplot as plt
 from queue import PriorityQueue as PQ
+from scipy.ndimage import maximum_filter
+
+def peakFilter(pts, radius):
+    """Filter out ambiguous points
+
+    Args:
+        pts (array-like): Input points, (N,2)
+        radius (float): Points within radius would be combined.
+
+    Returns:
+        points (numpy.ndarray): Output points, (N,2)
+    """
+    points = []
+    assert len(np.array(pts).shape) == 2
+    assert np.array(pts).shape[1] == 2
+
+    def check_buffer(buffer):
+        p0 = np.zeros(2)
+        for p in buffer:
+            p0 += p
+        p0 /= len(buffer)
+        return p0
+
+    buffer = []
+    while not pts == []:
+        p0 = pts.pop(0)
+        p0 = np.array(p0)
+        buffer.append(p0)
+
+        for p1 in pts:
+            p1 = np.array(p1)
+            p0 = check_buffer(buffer)
+            distance = np.sqrt(np.sum((p0-p1)**2))
+            if distance < radius:
+                buffer.append(p1)
+
+        p = check_buffer(buffer)
+        points.append(list(p))
+
+        for p in buffer:
+            try:
+                pts.pop(pts.index(list(p)))
+            except ValueError:
+                pass
+        buffer = []
+
+    return np.array(points)
 
 def BuildGridModel(stp_arr, **kwarg):
     """Build grid model from stop image
@@ -66,7 +112,7 @@ def BuildGridModel(stp_arr, **kwarg):
 
     print('Finding peaks...') # local maximum coordinate
     neighborhoodSize = approxSpacing/2
-    localMax = filters.maximum_filter(stp_arr, neighborhoodSize)
+    localMax = maximum_filter(stp_arr, neighborhoodSize)
     peaks = (localMax == stp_arr) # true & false map
     boundary = imageBoundary
     allPeaks = []
@@ -74,6 +120,8 @@ def BuildGridModel(stp_arr, **kwarg):
         for j in range(boundary,peaks.shape[1]-boundary):
             if peaks[i,j]:
                 allPeaks.append([i,j])
+    allPeaks = peakFilter(allPeaks, radius).tolist()
+    allPeaks.sort() # x from min to max, then y from min to max
 
     print('Fitting grid lines...')
     # vertical distance between first one in one line and last one in another line
@@ -314,6 +362,9 @@ def segmentImage(image, invM, peakArr):
     subimages = {}
     anchors = {}
 
+    R_index, C_index = 0, 1
+    X_index, Y_index = 0, 1
+
     print('Extracting subimages...')
     for irow in range(CGH.shape[0]):
         for icol in range(CGH.shape[1]):
@@ -332,10 +383,20 @@ def segmentImage(image, invM, peakArr):
                 anchors[irow] = {}
             anchors[irow][icol] = {}
             anchors[irow][icol]['center'] = peakArr[irow][icol]
-            anchors[irow][icol]['upperLeft'] = p1 + np.array([p2[0]-p1[0], 0])
-            anchors[irow][icol]['upperRight'] = p2 + np.array([0, p3[1]-p2[1]])
-            anchors[irow][icol]['lowerRight'] = p3 + np.array([p4[0]-p3[0], 0])
-            anchors[irow][icol]['lowerLeft'] = p4 + np.array([0, p1[1]-p4[1]]) # (y,x)
+            corners = np.array([
+                [min(p1[X_index],p4[X_index]), min(p1[Y_index],p2[Y_index])], # p1
+                [max(p2[X_index],p3[X_index]), min(p1[Y_index],p2[Y_index])], # p2
+                [max(p2[X_index],p3[X_index]), max(p3[Y_index],p4[Y_index])], # p3
+                [min(p1[X_index],p4[X_index]), max(p3[Y_index],p4[Y_index])] # p4
+                ])
+            cornerX, cornerY = corners[:,X_index], corners[:,Y_index]
+            cornerX = np.clip(cornerX, 0, image.shape[R_index])
+            cornerY = np.clip(cornerY, 0, image.shape[C_index])
+            corners = np.stack((cornerX, cornerY), axis=-1)
+            anchors[irow][icol]['upperLeft'] = corners[0].astype(int)
+            anchors[irow][icol]['upperRight'] = corners[1].astype(int)
+            anchors[irow][icol]['lowerRight'] = corners[2].astype(int)
+            anchors[irow][icol]['lowerLeft'] = corners[3].astype(int)
 
             p1 = anchors[irow][icol]['upperLeft'][::-1]
             p2 = anchors[irow][icol]['upperRight'][::-1]

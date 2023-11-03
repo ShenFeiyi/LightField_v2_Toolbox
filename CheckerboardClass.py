@@ -17,6 +17,8 @@ class CheckerboardParams:
             'tilt': [rx, ry], [rad], (optional)
         }
         """
+        if data['initDepth'] > data['lastDepth']:
+            data['depthInterval'] *= -1
         self.data = data
         self.coeffi = kwargs['coeffi'] if 'coeffi' in kwargs else {'M':1, 'MM':1e-3}
 

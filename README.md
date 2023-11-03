@@ -583,6 +583,10 @@ Generate checkerboard for calibration.
 
 ## 3. Log
 
+### version 1.0.3
+
+**2023/11/02** (I have to use it to do refocusing...) Add support to RGB images. 
+
 ### version 1.0.2
 
 **2023/08/10** Final update. Add support to poor resolution images. 

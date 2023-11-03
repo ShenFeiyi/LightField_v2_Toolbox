@@ -73,24 +73,24 @@ class LFCam:
 
         # Read Images
         self.PoorRes = kwargs.get('PoorRes', False) # image quality is poor
-        self.exampleImage = LFImage('example', cv.imread(self.ImagePaths['example'], cv.IMREAD_GRAYSCALE))
+        self.exampleImage = LFImage('example', cv.imread(self.ImagePaths['example']))
         self.whiteImage = WhiteImage(cv.imread(self.ImagePaths['whiteImage'], cv.IMREAD_GRAYSCALE))
 
         N_images = np.round(len(self.ImagePaths['depth'])/self.cbParams.depthRepeat).astype(int)
-        imgShape = (N_images, self.exampleImage.image.shape[0], self.exampleImage.image.shape[1])
+        imgShape = [N_images] + list(self.exampleImage.image.shape)
         images = np.zeros(imgShape, dtype='float64')
 
         for ii in range(0, len(self.ImagePaths['depth']), self.cbParams.depthRepeat):
             oneSlice = np.zeros(self.exampleImage.image.shape, dtype='float64')
             for jj in range(self.cbParams.depthRepeat):
-                img = cv.imread(self.ImagePaths['depth'][ii+jj], cv.IMREAD_GRAYSCALE)
+                img = cv.imread(self.ImagePaths['depth'][ii+jj])
                 oneSlice += img
             oneSlice /= self.cbParams.depthRepeat
             if self.PoorRes:
                 oneSlice = self.whiteImage.unvignet(oneSlice, clip=50)
             else:
-                oneSlice = self.whiteImage.unvignet(oneSlice, clip=255)
-            images[int(ii/self.cbParams.depthRepeat), :, :] = oneSlice
+                pass # oneSlice = self.whiteImage.unvignet(oneSlice, clip=255)
+            images[int(ii/self.cbParams.depthRepeat)] = oneSlice
         self.paraCheckerStack = DepthStack(self.cbParams, images)
 
         self.calibImages = []
@@ -361,7 +361,7 @@ class LFCam:
 
         for curDepth in depth_keys:
 
-            if (curDepth >= initDepth) and (curDepth <= lastDepth):
+            if (initDepth < lastDepth and (curDepth >= initDepth) and (curDepth <= lastDepth)) or (initDepth > lastDepth and (curDepth <= initDepth) and (curDepth >= lastDepth)):
 
                 # if not detect before
                 # save when all views in one depth are completed
@@ -380,7 +380,23 @@ class LFCam:
                                 )
 
                     curLFImage = imgStack[curDepth]
-                    subimages, anchors = segmentImage(curLFImage.image, self.invM, self.peaks)
+                    if len(curLFImage.image.shape) == 2: # gray
+                        subimages, anchors = segmentImage(curLFImage.image, self.invM, self.peaks)
+                    elif len(curLFImage.image.shape) == 3: # RGB
+                        subRs, anchors = segmentImage(curLFImage.image[:,:,0], self.invM, self.peaks)
+                        subGs, _ = segmentImage(curLFImage.image[:,:,1], self.invM, self.peaks)
+                        subBs, _ = segmentImage(curLFImage.image[:,:,2], self.invM, self.peaks)
+                        subimages = {}
+                        for row in subRs:
+                            subimages[row] = {}
+                            for col in subRs[row]:
+                                img = np.zeros(list(subRs[row][col].shape)+[3], subRs[row][col].dtype)
+                                img[:,:,0] = subRs[row][col]
+                                img[:,:,1] = subGs[row][col]
+                                img[:,:,2] = subBs[row][col]
+                                subimages[row][col] = img
+                    else:
+                        raise ProgramSTOP('Unknown Image Type !')
 
                     assert len(subimages) == self.row_total
                     assert len(subimages[0]) == self.col_total
@@ -421,6 +437,10 @@ class LFCam:
                                 r1, c1 = corner1.upper()
                                 r2, c2 = corner2.upper()
                                 shape = (ord(r2)+1-ord(r1)+1, ord(c2)+1-ord(c1)+1) # # of inner corners, not squares
+                                if min(shape) < 3:
+                                    print('Current shape = ', shape)
+                                    print("Both width and height of the pattern should have bigger than 2 in function 'findChessboardCorners'\nTry again!")
+                                    continue
 
                                 if self.PoorRes:
                                     imagePoints = arrangePointCloud(low_light_corners.reshape(-1,2), shape, self.cbParams.number_of_pixels_per_checker)

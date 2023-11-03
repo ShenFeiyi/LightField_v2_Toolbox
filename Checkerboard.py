@@ -3,6 +3,15 @@ import os
 import cv2 as cv
 import numpy as np
 
+def rgb2gray(img):
+    """Return grayscale image
+    """
+    if not img.dtype == 'uint8':
+        img = img.astype('uint8')
+    if len(img.shape) == 3:
+        img = cv.cvtColor(img, cv.COLOR_RGB2GRAY)
+    return img
+
 def imreadFunc(extension):
     """Read image based on its extension
 
@@ -41,10 +50,10 @@ def readCheckerboardImages(root, **kwarg):
         for name in imagenames:
             path = os.path.join(root, name)
             image_arr = imreadFunc(extension)(path)
-            yield path, image_arr
+            yield path, rgb2gray(image_arr)
     except NotADirectoryError:
         # only one image file
-        yield (root, imreadFunc(extension)(root))
+        yield (root, rgb2gray(imreadFunc(extension)(root)))
 
 def getCheckerboardCorners(root, patternSize, **kwarg):
     """Find checkerboard corners

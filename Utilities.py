@@ -688,7 +688,7 @@ def myUndistort(imgArr, undist, center, **kwarg):
     RN2 = YNS**2 + XNS**2
 
     points = np.zeros((imgArr.shape[0]*imgArr.shape[1],2))
-    values = np.zeros(imgArr.shape[0]*imgArr.shape[1])
+    values = np.zeros(imgArr.shape[0]*imgArr.shape[1]) if len(imgArr.shape) == 2 else np.zeros((imgArr.shape[0]*imgArr.shape[1],3))
 
     factor = 1
     for i in range(len(undist)):

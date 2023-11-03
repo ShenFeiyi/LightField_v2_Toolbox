@@ -35,20 +35,43 @@ class WhiteImage(LFImage):
             newImageStack (numpy.ndarray): Unvignetted image(s)
         """
         clip = kwargs['clip'] if 'clip' in kwargs else 255
-        imgShape = imgStack.shape[-2:]
-        assert imgShape == self.image.shape
+        imgShape = imgStack.shape
 
-        if len(imgStack.shape) == 3: # n images
+        OneGrayImage = len(imgStack.shape) == 2 # one gray image
+        OneRGBImage = len(imgStack.shape) == 3 and imgStack.shape[-1] == 3 # one RGB image
+
+        if OneGrayImage: # one gray image
+            newImageStack = imgStack.astype('float64') / (self.image+1e-3)
+            newImageStack = 255*(newImageStack-newImageStack.min())/(newImageStack.max()-newImageStack.min())
+            newImageStack = np.clip(newImageStack, 0, clip)*255/clip
+
+        elif OneRGBImage: # one RGB image
+            newImageStack = np.zeros(imgStack.shape, dtype='float64')
+            for c in range(3):
+                newImageStack[:,:,c] = imgStack[:,:,c].astype('float64') / (self.image+1e-3)
+            newImageStack = 255*(newImageStack-newImageStack.min())/(newImageStack.max()-newImageStack.min())
+            newImageStack = np.clip(newImageStack, 0, clip)*255/clip
+
+        elif len(imgStack.shape) == 3: # n gray images
             newImageStack = np.zeros(imgStack.shape, dtype='float64')
             imgStack = imgStack.astype('float64')
             for i in range(imgStack.shape[0]):
                 newImageStack[i,:,:] = imgStack[i,:,:] / (self.image+1e-3) # prevent x/0
                 newImageStack[i,:,:] = 255*(newImageStack[i,:,:]-newImageStack[i,:,:].min())/(newImageStack[i,:,:].max()-newImageStack[i,:,:].min())
                 newImageStack[i,:,:] = np.clip(newImageStack[i,:,:], 0, clip)*255/clip
-        else: # one image
-            newImageStack = imgStack.astype('float64') / (self.image+1e-3)
-            newImageStack = 255*(newImageStack-newImageStack.min())/(newImageStack.max()-newImageStack.min())
-            newImageStack = np.clip(newImageStack, 0, clip)*255/clip
+
+        elif len(imgStack.shape) == 4: # n RGB images
+            newImageStack = np.zeros(imgStack.shape, dtype='float64')
+            imgStack = imgStack.astype('float64')
+            for i in range(imgStack.shape[0]):
+                for c in range(3): # RGB channel
+                    newImageStack[i,:,:,c] = imgStack[i,:,:,c] / (self.image+1e-3) # prevent x/0
+                newImageStack[i] = 255*(newImageStack[i]-newImageStack[i].min())/(newImageStack[i].max()-newImageStack[i].min())
+                newImageStack[i] = np.clip(newImageStack[i], 0, clip)*255/clip
+
+        else:
+            print('Image Shape Does NOT Match')
+            raise
 
         return newImageStack
 
@@ -67,9 +90,9 @@ class DepthStack:
         Attrib:
             self.imageStack (dict): Stack of images. imageStack = {depth: LFImage(class)}
         """
-        self.initDepth = cbParams.initDepth()
-        self.lastDepth = cbParams.lastDepth()
-        self.depthInterval = cbParams.depthInterval()
+        self.initDepth = round(cbParams.initDepth(), 3)
+        self.lastDepth = round(cbParams.lastDepth(), 3)
+        self.depthInterval = round(cbParams.depthInterval(), 3)
 
         N_images = np.round((self.lastDepth+self.depthInterval-self.initDepth)/self.depthInterval).astype(int)
         try:
@@ -79,8 +102,14 @@ class DepthStack:
             raise
 
         self.imageStack = {}
-        for ii, d in enumerate(np.arange(self.initDepth, self.lastDepth+self.depthInterval, self.depthInterval).round(3)): # precision 0.001
-            self.imageStack[d] = LFImage(d, images[ii, :, :])
+        ii, d = 0, self.initDepth
+        while True:
+            self.imageStack[d] = LFImage(d, images[ii])
+            d = round(self.depthInterval+d, 3)
+            if self.initDepth < self.lastDepth and d > self.lastDepth:
+                break
+            if self.initDepth > self.lastDepth and d < self.lastDepth:
+                break
 
     def __repr__(self):
         return 'Depth Stack from ' + str(self.initDepth) + ' to ' + str(self.lastDepth)
