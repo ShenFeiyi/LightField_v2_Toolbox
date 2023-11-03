@@ -106,6 +106,7 @@ class DepthStack:
         while True:
             self.imageStack[d] = LFImage(d, images[ii])
             d = round(self.depthInterval+d, 3)
+            ii += 1
             if self.initDepth < self.lastDepth and d > self.lastDepth:
                 break
             if self.initDepth > self.lastDepth and d < self.lastDepth:
